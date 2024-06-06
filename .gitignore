@@ -1,0 +1,7 @@
+data/
+figures/
+tables/
+
+*.csv
+*.png
+*.eps
