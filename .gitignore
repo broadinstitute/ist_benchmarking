@@ -1,6 +1,7 @@
 data/
 figures/
 tables/
+old/
 
 *.csv
 *.png
