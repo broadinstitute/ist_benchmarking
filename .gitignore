@@ -2,6 +2,7 @@ data/
 figures/
 tables/
 old/
+__pycache__/
 
 *.csv
 *.png
