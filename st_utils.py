@@ -1,7 +1,7 @@
 """
 Author: 
 Huan Wang (whuan@broadinstitute.org)
-OPP, Broad Institute of MIT and Harvard
+STP, Broad Institute of MIT and Harvard
 
 Functions:
     calculate_qc_metric()
@@ -19,6 +19,7 @@ Functions:
     imshow()
     invert_y()
     load_gis_csv()
+    load_shape_file()
     name_parser()
     save_html()
     seg_overlay()
@@ -26,11 +27,9 @@ Functions:
     standardize_data()
     subset_on_condition()
     transcript_loader()
-
-
+    vecterize()
 """
 import os
-import sys
 import pandas as pd
 import scanpy as sc
 import anndata as ad
@@ -40,10 +39,11 @@ from collections import Counter
 import json
 import glob
 from geopandas import GeoDataFrame
-from shapely.geometry import Point,Polygon,box
+from shapely.geometry import Point,Polygon
 import geopandas as gpd
 from shapely.affinity import scale
-from shapely.ops import unary_union
+from rasterio.features import shapes
+from shapely.geometry import shape
 from matplotlib import pyplot as plt
 import numpy as np
 from skimage import io
@@ -431,20 +431,15 @@ def get_processed(sample, data_type, fast=False):
     return df
         
 
-
 def get_qced_cell_id(qc_count_threshold, qc_unique_gene_threshold):
 
     d_perc = {}
     df_m = pd.read_parquet(f'data/single_cell_metrics/all_cell_level.parquet.gzip', engine='pyarrow')
     df_mat = df_m.copy()
-    print (f'\nbefore QC: {len(df_mat)}')
     d_before = {**Counter(df_m['sample'])}
     df_mat = df_mat.loc[df_mat['transcript_counts'] > qc_count_threshold]
-    print (f'after QC using transcript count per cell: {len(df_mat)}')
     df_mat = df_mat.loc[df_mat['unique_genes'] > qc_unique_gene_threshold]
-    print (f'after QC using unique genes per cell: {len(df_mat)}')
     d_after = {**Counter(df_mat['sample'])}
-    print (f'Good quality cells: {round(len(df_mat) * 100/len(df_m),1)}')
     for i in d_after.keys():
         d_perc[i] = round(d_after[i] * 100 /d_before[i], 2)
     return df_mat.cell_id.to_list(), d_perc
@@ -487,20 +482,23 @@ def imshow(src, resize=True, vlim=True, q0=0.01, q1=0.99, figwidth=10, tt='', cm
 
 
 
-def invert_y(polygon):
-    """Function to modify y-values to -y for a Polygon"""
-    if polygon.geom_type == 'Polygon':
-        exterior = polygon.exterior.coords
+def invert_y(geometry):
+    """Function to modify y-values to -y for a Polygon or Point"""
+    if geometry.geom_type == 'Polygon':
+        exterior = geometry.exterior.coords
         new_exterior = [(x, -y) for x, y in exterior]
-        interiors = polygon.interiors
+        interiors = geometry.interiors
         new_interiors = []
         for interior in interiors:
             new_interior = [(x, -y) for x, y in interior.coords]
             new_interiors.append(new_interior)
         return Polygon(new_exterior, new_interiors)
+    elif geometry.geom_type == 'Point':
+        x, y = geometry.coords[0]
+        return Point(x, -y)
     else:
         # Handle MultiPolygons or other geometries if needed
-        return polygon
+        return geometry
 
 
 
@@ -517,9 +515,13 @@ def load_gis_csv(csv_file, points_src='image'):
     df = df.sort_values(by=['id'])
     df = df.reset_index(drop=True)
     df = df[['id','x','y']]
-    
     return df
 
+
+def load_shape_file(shapefile):
+    gdf = gpd.read_file(shapefile)
+    gdf['geometry'] = gdf['geometry'].apply(invert_y)
+    return gdf
 
 def name_parser(sample):
     platform = sample.split('_')[-3]
@@ -730,23 +732,22 @@ def transcript_loader(SAMPLE):
 
 
 def vectorize(arr):
-    grouped_polygons = []
-    cell_size = 1.0
-    for row in range(arr.shape[0]):
-        for col in range(arr.shape[1]):
-            value = arr[row, col]
-            if value != 0:
-                # Create a Shapely box (polygon) for each cell
-                polygon = box(col * cell_size, row * cell_size, (col + 1) * cell_size, (row + 1) * cell_size)
-                grouped_polygons.append((polygon, value))
+    # Mask out zeros to focus only on non-zero values for processing
+    mask = arr != 0
+    results = ({'properties': {'value': v}, 'geometry': s}
+               for i, (s, v) in enumerate(shapes(arr, mask=mask, connectivity=8)))
 
-    # Union polygons with the same value
-    grouped_polygons = [(unary_union([poly for poly, val in grouped_polygons if val == value]), value) for value in set([val for poly, val in grouped_polygons])]
+    # Convert shapes and values to GeoDataFrame
+    geoms = []
+    values = []
+    for result in results:
+        geom = shape(result['geometry'])
+        val = result['properties']['value']
+        geoms.append(geom)
+        values.append(val)
 
-    # Create a GeoDataFrame with polygons and values
-    gdf = gpd.GeoDataFrame(
-        grouped_polygons,
-        columns=['geometry', 'value'],
-        crs = "EPSG:4326"
-    )
+    # Create GeoDataFrame
+    gdf = gpd.GeoDataFrame({'value': values, 'geometry': geoms}, crs="EPSG:4326")
+    gdf['value'] = gdf['value'].astype(int)
+
     return gdf
