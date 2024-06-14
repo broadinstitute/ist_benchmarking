@@ -9,6 +9,39 @@ Functions:
 """
 
 import geopandas as gpd
+import numpy as np
+from shapely.affinity import scale
+
+def calculate_area_bounds(percentage, total_size):
+    """
+    Calculate the bounding box coordinates for a given percentage area of a square plot.
+
+    Parameters:
+        percentage (float): Desired percentage of the area (e.g., 25, 50, 75).
+        total_size (int): Total size of one side of the square (default 4256).
+
+    Returns:
+        dict: A dictionary with 'xmin', 'xmax', 'ymin', 'ymax'.
+    """
+    # Calculate the side length of the square that corresponds to the desired area percentage
+    area_side_length = np.sqrt((percentage / 100) * (total_size ** 2))
+
+    # Calculate the center of the original square
+    center = total_size / 2
+
+    # Calculate min and max coordinates based on the area_side_length
+    xmin = center - (area_side_length / 2)
+    xmax = center + (area_side_length / 2)
+    ymin = xmin  # Symmetry in square
+    ymax = xmax
+
+    return {
+        'xmin': int(xmin),
+        'xmax': int(xmax),
+        'ymin': int(ymin),
+        'ymax': int(ymax)
+    }
+
 
 def calculate_seg_eval_metrics(tp, fn, fp):
     """
@@ -70,3 +103,65 @@ def calculate_tp_fn_fp_from_gdf(gdf_mask, gdf_gt):
     fp = all_masks - matched_masks
 
     return tp, fn, fp
+
+
+def gdf_flip(gdf, direction='lr'):
+    """
+    Flips the geometries in a GeoDataFrame horizontally or vertically.
+    
+    Parameters:
+        gdf (GeoDataFrame): The GeoDataFrame to be flipped.
+        direction (str): Direction of the flip, 'lr' for left-right, 'ud' for up-down.
+        
+    Returns:
+        GeoDataFrame: A new GeoDataFrame with flipped geometries.
+    """
+    new_gdf = gdf.copy()
+    minx, miny, maxx, maxy = new_gdf.total_bounds
+    centroid_x = (maxx + minx) / 2
+    centroid_y = (maxy + miny) / 2
+
+    # Determine the scale factors based on the direction of the flip
+    if direction == 'lr':
+        # Flip left-right
+        new_gdf['geometry'] = new_gdf['geometry'].apply(
+            lambda geom: scale(geom, xfact=-1, yfact=1, origin=(centroid_x, centroid_y))
+        )
+    elif direction == 'ud':
+        # Flip up-down
+        new_gdf['geometry'] = new_gdf['geometry'].apply(
+            lambda geom: scale(geom, xfact=1, yfact=-1, origin=(centroid_x, centroid_y))
+        )
+    else:
+        raise ValueError("Invalid direction specified. Use 'lr' for left-right or 'ud' for up-down.")
+
+    return new_gdf
+
+
+def translate_to_bbox(original_gdf, bound_box_values_um, des_img_shape):
+    # Calculate the bounds of the current GeoDataFrame
+    minx = bound_box_values_um[0]
+    miny = bound_box_values_um[1]
+    maxx = bound_box_values_um[2]
+    maxy= bound_box_values_um[3]
+
+
+    # Calculate translation factors to move minx, miny to 0, 0
+    trans_x = -minx
+    trans_y = -miny
+
+    # Translate the geometries
+    translated_gdf = original_gdf.copy()
+    translated_gdf['geometry'] = translated_gdf['geometry'].translate(trans_x, trans_y)
+
+    # Calculate the current max extents after translation
+    new_maxx, new_maxy = maxx + trans_x, maxy + trans_y
+
+    # Calculate scaling factors
+    scale_x = des_img_shape[1] / new_maxx
+    scale_y = des_img_shape[0] / new_maxy
+
+    # Apply scaling
+    translated_gdf['geometry'] = translated_gdf['geometry'].scale(xfact=scale_x, yfact=scale_y, origin=(0, 0))
+
+    return translated_gdf
