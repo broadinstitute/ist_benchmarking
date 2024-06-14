@@ -19,6 +19,7 @@ Functions:
     imshow()
     invert_y()
     load_gis_csv()
+    load_shape_file()
     name_parser()
     save_html()
     seg_overlay()
@@ -523,9 +524,13 @@ def load_gis_csv(csv_file, points_src='image'):
     df = df.sort_values(by=['id'])
     df = df.reset_index(drop=True)
     df = df[['id','x','y']]
-    
     return df
 
+
+def load_shape_file(shapefile):
+    gdf = gpd.read_file(shapefile)
+    gdf['geometry'] = gdf['geometry'].apply(invert_y)
+    return gdf
 
 def name_parser(sample):
     platform = sample.split('_')[-3]
