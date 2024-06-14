@@ -6,7 +6,9 @@ STP, Broad Institute of MIT and Harvard
 Functions:
     calculate_area_bounds()
     calculate_seg_eval_metrics()
+    dapi_mask_annotation()
     calculate_tp_fn_fp_from_gdf()
+    dapi_mem_mask_annotation()
     gdf_flip()
     translate_to_bbox()
 """
@@ -14,6 +16,8 @@ Functions:
 import geopandas as gpd
 import numpy as np
 from shapely.affinity import scale
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 def calculate_area_bounds(percentage, total_size):
@@ -107,6 +111,119 @@ def calculate_tp_fn_fp_from_gdf(gdf_mask, gdf_gt):
     fp = all_masks - matched_masks
 
     return tp, fn, fp
+
+
+def dapi_mask_annotation(img_dapi, gdf_mask, gdf_truth, figwidth, 
+                         q0, q1, scale_bar, xy_range=False, area_bounds={},
+                         lw=1, markersize=1, dapi_cmap='bone', boundary_color='white', 
+                         gt_color='red', save=False, fname=''):
+    """
+    Visualize DAPI stained image with overlaid segmentation and ground truth annotations.
+    
+    Parameters:
+        img_dapi (array): 2D array of the DAPI channel.
+        gdf_mask (GeoDataFrame): Geodataframe containing the segmentation mask.
+        gdf_truth (GeoDataFrame): Geodataframe containing the ground truth annotations.
+        figwidth (float): Width of the figure.
+        q0 (float): Lower quantile for DAPI image normalization.
+        q1 (float): Upper quantile for DAPI image normalization.
+        scale_bar (matplotlib.artist.Artist): Scale bar to be added to the plot.
+        xy_range (bool): Whether to apply custom limits to the x and y axes.
+        area_bounds (dict): Dictionary with 'xmin', 'xmax', 'ymin', 'ymax' if xy_range is True.
+        lw (float): Line width for plotting the segmentation mask.
+        markersize (float): Size of the marker for ground truth points.
+        dapi_cmap (str): Colormap for DAPI image.
+        boundary_color (str): Color for the boundary of the segmentation mask.
+        gt_color (str): Color for the ground truth annotations.
+        save (bool): Whether to save the figure to a file.
+        fname (str): Filename or path to save the figure if save is True.
+
+    Returns:
+        None
+    """
+    figheight = figwidth * img_dapi.shape[0] / img_dapi.shape[1]
+    fig, ax = plt.subplots(1, 1, figsize=(figwidth, figheight))
+    ax.imshow(
+        img_dapi, vmin=np.quantile(img_dapi, q0), vmax=np.quantile(img_dapi, q1), cmap=dapi_cmap)
+    gdf_mask.plot(aspect=1, ax=ax, legend=False,
+                  edgecolor=boundary_color,
+                  facecolor='none',
+                  linewidth=lw)
+    gdf_truth.plot(
+        aspect=1, ax=ax, legend=False,
+        edgecolor=gt_color,
+        facecolor=gt_color,
+        linewidth=markersize)
+    ax.add_artist(scale_bar)
+    if xy_range:
+        ax.set_xlim(area_bounds['xmin'], area_bounds['xmax'])
+        ax.set_ylim(area_bounds['ymin'], area_bounds['ymax'])
+    plt.axis('off')
+    plt.show()
+    if save:
+        fig.savefig(fname, format='png', dpi=200)
+        fig.savefig(fname.replace('png', 'eps'), format='eps', dpi=200)
+
+
+def dapi_mem_mask_annotation(img_dapi, img_mem, gdf_mask, gdf_truth, figwidth, 
+                             q_dapi, q_mem, scale_bar, xy_range=False, area_bounds={},
+                             lw=1, markersize=1, boundary_color='white', 
+                             gt_color='red', save=False, fname=''):    
+    """
+    Visualize a composite image combining DAPI and membrane staining with
+    overlaid segmentation and ground truth annotations.
+    
+    Parameters:
+        img_dapi (array): 2D array of the DAPI channel.
+        img_mem (array): 2D array of the membrane channel.
+        gdf_mask (GeoDataFrame): Geodataframe containing the segmentation mask.
+        gdf_truth (GeoDataFrame): Geodataframe containing the ground truth annotations.
+        figwidth (float): Width of the figure.
+        q_dapi (float): Upper quantile for DAPI image normalization.
+        q_mem (float): Upper quantile for membrane image normalization.
+        scale_bar (matplotlib.artist.Artist): Scale bar to be added to the plot.
+        xy_range (bool): Whether to apply custom limits to the x and y axes.
+        area_bounds (dict): Dictionary with 'xmin', 'xmax', 'ymin', 'ymax' if xy_range is True.
+        lw (float): Line width for plotting the segmentation mask.
+        markersize (float): Size of the marker for ground truth points.
+        boundary_color (str): Color for the boundary of the segmentation mask.
+        gt_color (str): Color for the ground truth annotations.
+        save (bool): Whether to save the figure to a file.
+        fname (str): Filename or path to save the figure if save is True.
+
+    Returns:
+        None
+    """
+    figheight = figwidth * img_dapi.shape[0] / img_dapi.shape[1]
+    fig, ax = plt.subplots(1, 1, figsize=(figwidth, figheight))
+
+    r = np.zeros_like(img_dapi)
+    g = img_mem
+    b = img_dapi
+
+    g = g / np.percentile(g, q_mem * 100)
+    b = b / np.percentile(b, q_dapi * 100)
+    stack = np.dstack((r, g, b))
+    
+    ax.imshow(stack)
+    gdf_mask.plot(aspect=1, ax=ax, legend=False,
+                  edgecolor=boundary_color,
+                  facecolor='none',
+                  linewidth=lw)
+    gdf_truth.plot(
+        aspect=1, ax=ax, legend=False,
+        edgecolor=gt_color,
+        facecolor=gt_color,
+        linewidth=markersize)
+    ax.add_artist(scale_bar)
+    if xy_range:
+        ax.set_xlim(area_bounds['xmin'], area_bounds['xmax'])
+        ax.set_ylim(area_bounds['ymin'], area_bounds['ymax'])
+    plt.axis('off')
+    plt.show()
+    if save:
+        fig.savefig(fname, format='png', dpi=200)
+        fig.savefig(fname.replace('png', 'eps'), format='eps', dpi=200)
 
 
 def gdf_flip(gdf, direction='lr'):
