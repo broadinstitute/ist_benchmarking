@@ -1,7 +1,7 @@
 """
 Author: 
 Huan Wang (whuan@broadinstitute.org)
-OPP, Broad Institute of MIT and Harvard
+STP, Broad Institute of MIT and Harvard
 
 Functions:
     calculate_qc_metric()
@@ -30,7 +30,6 @@ Functions:
     vecterize()
 """
 import os
-import sys
 import pandas as pd
 import scanpy as sc
 import anndata as ad
@@ -40,12 +39,11 @@ from collections import Counter
 import json
 import glob
 from geopandas import GeoDataFrame
-from shapely.geometry import Point,Polygon,box
+from shapely.geometry import Point,Polygon
 import geopandas as gpd
 from shapely.affinity import scale
 from rasterio.features import shapes
 from shapely.geometry import shape
-from shapely.ops import unary_union
 from matplotlib import pyplot as plt
 import numpy as np
 from skimage import io

@@ -1,16 +1,20 @@
 """
 Author: 
 Huan Wang (whuan@broadinstitute.org)
-OPP, Broad Institute of MIT and Harvard
+STP, Broad Institute of MIT and Harvard
 
 Functions:
+    calculate_area_bounds()
     calculate_seg_eval_metrics()
     calculate_tp_fn_fp_from_gdf()
+    gdf_flip()
+    translate_to_bbox()
 """
 
 import geopandas as gpd
 import numpy as np
 from shapely.affinity import scale
+
 
 def calculate_area_bounds(percentage, total_size):
     """
