@@ -43,6 +43,8 @@ from geopandas import GeoDataFrame
 from shapely.geometry import Point,Polygon,box
 import geopandas as gpd
 from shapely.affinity import scale
+from rasterio.features import shapes
+from shapely.geometry import shape
 from shapely.ops import unary_union
 from matplotlib import pyplot as plt
 import numpy as np
@@ -487,20 +489,23 @@ def imshow(src, resize=True, vlim=True, q0=0.01, q1=0.99, figwidth=10, tt='', cm
 
 
 
-def invert_y(polygon):
-    """Function to modify y-values to -y for a Polygon"""
-    if polygon.geom_type == 'Polygon':
-        exterior = polygon.exterior.coords
+def invert_y(geometry):
+    """Function to modify y-values to -y for a Polygon or Point"""
+    if geometry.geom_type == 'Polygon':
+        exterior = geometry.exterior.coords
         new_exterior = [(x, -y) for x, y in exterior]
-        interiors = polygon.interiors
+        interiors = geometry.interiors
         new_interiors = []
         for interior in interiors:
             new_interior = [(x, -y) for x, y in interior.coords]
             new_interiors.append(new_interior)
         return Polygon(new_exterior, new_interiors)
+    elif geometry.geom_type == 'Point':
+        x, y = geometry.coords[0]
+        return Point(x, -y)
     else:
         # Handle MultiPolygons or other geometries if needed
-        return polygon
+        return geometry
 
 
 
@@ -749,4 +754,26 @@ def vectorize(arr):
         columns=['geometry', 'value'],
         crs = "EPSG:4326"
     )
+    return gdf
+
+
+def vectorize_optimized(arr):
+    # Mask out zeros to focus only on non-zero values for processing
+    mask = arr != 0
+    results = ({'properties': {'value': v}, 'geometry': s}
+               for i, (s, v) in enumerate(shapes(arr, mask=mask, connectivity=8)))
+
+    # Convert shapes and values to GeoDataFrame
+    geoms = []
+    values = []
+    for result in results:
+        geom = shape(result['geometry'])
+        val = result['properties']['value']
+        geoms.append(geom)
+        values.append(val)
+
+    # Create GeoDataFrame
+    gdf = gpd.GeoDataFrame({'value': values, 'geometry': geoms}, crs="EPSG:4326")
+    gdf['value'] = gdf['value'].astype(int)
+
     return gdf
