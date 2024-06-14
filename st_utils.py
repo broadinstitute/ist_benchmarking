@@ -26,6 +26,7 @@ Functions:
     standardize_data()
     subset_on_condition()
     transcript_loader()
+    vecterize()
 
 
 """
@@ -735,29 +736,6 @@ def transcript_loader(SAMPLE):
 
 
 def vectorize(arr):
-    grouped_polygons = []
-    cell_size = 1.0
-    for row in range(arr.shape[0]):
-        for col in range(arr.shape[1]):
-            value = arr[row, col]
-            if value != 0:
-                # Create a Shapely box (polygon) for each cell
-                polygon = box(col * cell_size, row * cell_size, (col + 1) * cell_size, (row + 1) * cell_size)
-                grouped_polygons.append((polygon, value))
-
-    # Union polygons with the same value
-    grouped_polygons = [(unary_union([poly for poly, val in grouped_polygons if val == value]), value) for value in set([val for poly, val in grouped_polygons])]
-
-    # Create a GeoDataFrame with polygons and values
-    gdf = gpd.GeoDataFrame(
-        grouped_polygons,
-        columns=['geometry', 'value'],
-        crs = "EPSG:4326"
-    )
-    return gdf
-
-
-def vectorize_optimized(arr):
     # Mask out zeros to focus only on non-zero values for processing
     mask = arr != 0
     results = ({'properties': {'value': v}, 'geometry': s}
