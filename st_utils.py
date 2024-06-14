@@ -6,6 +6,7 @@ OPP, Broad Institute of MIT and Harvard
 Functions:
     calculate_qc_metric()
     calculate_seg_eval_metrics()
+    calculate_tp_fn_fp_from_gdf()
     convert_to_px()
     correct_tissue_names()
     create_circular_mask()
@@ -102,6 +103,36 @@ def calculate_seg_eval_metrics(tp, fn, fp):
         'f1_score': f1_score,
         'iou': iou
     }
+
+
+def calculate_tp_fn_fp_from_gdf(gdf_mask, gdf_gt):
+    """
+    Calculate true positives, false negatives, and false positives based on overlap
+    of mask polygons with ground truth centroids.
+
+    Parameters:
+        gdf_mask (GeoDataFrame): A GeoDataFrame containing polygons of cell segmentations.
+        gdf_gt (GeoDataFrame): A GeoDataFrame containing points of ground truth centroids.
+
+    Returns:
+        tuple: (true positives, false negatives, false positives)
+    """
+    # Spatial join to find overlaps (true positives)
+    tp_gdf = gpd.sjoin(gdf_gt, gdf_mask, how='left', op='within')
+
+    # True Positives (TP): Ground truth points that overlap with a mask polygon
+    tp = tp_gdf['index_right'].notna().sum()
+
+    # False Negatives (FN): Ground truth points that do not overlap with any mask polygon
+    fn = tp_gdf['index_right'].isna().sum()
+
+    # False Positives (FP): Mask polygons that do not contain any ground truth point
+    # Count mask polygons then subtract count of unique mask polygons that overlap with ground truths
+    all_masks = len(gdf_mask)
+    matched_masks = tp_gdf['index_right'].dropna().unique().shape[0]
+    fp = all_masks - matched_masks
+
+    return tp, fn, fp
 
 
 def convert_to_px(conversion, mat):
