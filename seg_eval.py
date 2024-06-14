@@ -14,10 +14,14 @@ Functions:
 """
 
 import geopandas as gpd
+import pandas as pd
+from shapely.geometry import Polygon
+from matplotlib.colors import ListedColormap, BoundaryNorm
 import numpy as np
 from shapely.affinity import scale
 import numpy as np
 import matplotlib.pyplot as plt
+import glob
 
 
 def calculate_area_bounds(percentage, total_size):
@@ -257,6 +261,204 @@ def gdf_flip(gdf, direction='lr'):
         raise ValueError("Invalid direction specified. Use 'lr' for left-right or 'ud' for up-down.")
 
     return new_gdf
+
+
+def load_cell_boundary_parquet(sample, data_dir='data'):
+    """
+    Loads cell boundary data from parquet files for different platforms and merges it with cell level information.
+
+    This function handles the loading and processing of cell boundaries differently based on the 'sample' platform
+    (e.g., 'xenium', 'merscope', 'cosmx'). It also merges the resulting geometries with cell level data such as 'core'
+    and 'tissue_type' for further analyses.
+
+    Parameters:
+        sample (str): The sample identifier which includes the platform and potentially other identifiers that
+                      dictate the file paths and processing logic.
+
+    Returns:
+        GeoDataFrame: A GeoDataFrame containing merged cell geometry and cell level information.
+    """
+
+    # Xenium platform processing
+    if 'xenium' in sample:
+        df_b = pd.read_parquet(f'{data_dir}/{sample}/cell_boundaries.parquet')
+
+        # Decode object dtype columns to UTF-8 if not from the year 2024
+        if '2024' not in sample:
+            for col in df_b.select_dtypes(include=['object']).columns:
+                df_b[col] = df_b[col].str.decode('utf-8')
+
+        grouped = df_b.groupby('cell_id')
+        cell_ids = []
+        polygons = []
+
+        # Creating polygons from cell boundary vertices
+        for cell_id, group in grouped:
+            polygon = Polygon(zip(group['vertex_y'], group['vertex_x']))
+            polygons.append(polygon)
+            cell_ids.append(cell_id)
+
+        gdf = gpd.GeoDataFrame({'cell_id': cell_ids, 'geometry': polygons}, crs='EPSG:4326')
+
+        # Load cell level data and merge
+        df_c = pd.read_parquet(f'{data_dir}/cell_level_csv/{sample}_cell_level.parquet.gzip', engine='pyarrow')[['cell_id', 'core', 'tissue_type']]
+        gdf_join = pd.merge(gdf, df_c, on='cell_id', how='inner')
+
+    # Merscope platform processing
+    elif 'merscope' in sample:
+        gdf = gpd.GeoDataFrame()
+
+        # Process each region's cell boundary data
+        for i, folder in enumerate(glob.glob(f'{data_dir}/{sample}/region_*')):
+            print(f"region_{i}")
+            file = f"{folder}/cell_boundaries.parquet"
+            gdf_b = gpd.read_parquet(file)
+            gdf_b['EntityID'] = gdf_b['EntityID'].apply(lambda x: f"{x}_region_{i}")
+            if gdf_b['EntityID'].duplicated().any():
+                print(f"region_{i} has duplicated EntityID")
+            gdf = pd.concat([gdf, gdf_b], ignore_index=True)
+
+        # Select mid Z level to standardize data layer
+        mid_index = len(sorted(gdf.ZLevel.unique())) // 2
+        mid_num = sorted(gdf.ZLevel.unique())[mid_index]
+        print(f'Mid Z level: {mid_num}')
+        gdf = gdf.loc[gdf['ZLevel'] == mid_num].explode()
+        
+        # Load cell level data and merge
+        df_c = pd.read_parquet(f'{data_dir}/cell_level_csv/{sample}_cell_level.parquet.gzip', engine='pyarrow')[['cell_id', 'core', 'tissue_type']]
+        gdf_join = pd.merge(gdf, df_c, on='cell_id', how='inner')
+
+    # Cosmx platform processing
+    elif 'cosmx' in sample:
+        gdf = gpd.GeoDataFrame()
+        fovs = [x for x in range(1, 151)] if 'htma' in sample else [x for x in range(1, 177)]
+
+        # Process each field of view (FOV)
+        for fov in fovs:
+            try:
+                original_fov = fov
+                fov = str(fov).zfill(3)
+                parquet_file = f'{data_dir}/{sample}/segmentation_by_fov_parquet/FOV_{fov}.parquet.gzip'
+                gdf_fov = gpd.read_parquet(parquet_file)
+                print(fov, len(gdf_fov))
+                gdf_fov['fov'] = fov
+                gdf_fov['cell_id'] = gdf_fov['value'].apply(lambda x: f"c_1_{original_fov}_{x}")
+                gdf_fov['fov'] = gdf_fov['fov'].astype(int)
+                gdf = pd.concat([gdf, gdf_fov], ignore_index=True)
+            except:
+                continue
+
+        # Load cell level data and merge
+        df_c = pd.read_parquet(f'{data_dir}/cell_level_csv/{sample}_cell_level.parquet.gzip', engine='pyarrow')[['cell_id', 'core', 'tissue_type', 'fov']]
+        gdf_join = pd.merge(df_c, gdf, on=['cell_id', 'fov'], how='left')
+
+    return gdf_join
+
+
+def plot_cell_filtration(
+        gdf_mask, figwidth, scale_bar,
+        xy_range=False, area_bounds={},
+        markersize=1, save=False, fname=''):
+    """
+    Plot a GeoDataFrame representing cell filtration data with custom color mapping.
+    
+    Parameters:
+        gdf_mask (GeoDataFrame): GeoDataFrame with a 'Keep' column indicating whether to keep (1) or drop (0) a cell.
+        figwidth (int): Width of the figure in inches.
+        scale_bar (matplotlib.artist.Artist): Scale bar to be added to the plot.
+        xy_range (bool): If True, use custom limits for the plot axes.
+        area_bounds (dict): Dictionary with keys 'xmin', 'xmax', 'ymin', 'ymax' for setting plot limits.
+        markersize (int): Size of the markers in the plot.
+        save (bool): If True, save the plot to a file.
+        fname (str): Filename or path to save the plot if `save` is True.
+    """
+    # Define custom colors for the 'Keep' values
+    cmap = ListedColormap(['red', 'blue'])
+    norm = BoundaryNorm([0, 0.5, 1], cmap.N)  # Define the boundaries for "Drop" (0) and "Keep" (1)
+
+    fig, ax = plt.subplots(figsize=(figwidth, figwidth))
+    fig.patch.set_facecolor('black')
+
+    # Plot the GeoDataFrame with the custom colormap
+    scatter = gdf_mask.plot(column='Keep', aspect=1, markersize=markersize, ax=ax,
+                            legend=False, edgecolor='lightgrey', cmap=cmap, norm=norm,
+                            linewidth=2.0)
+
+    # Optionally add a scale bar
+    ax.add_artist(scale_bar)
+
+    # Set custom axis limits if specified
+    if xy_range:
+        ax.set_xlim(area_bounds['xmin'], area_bounds['xmax'])
+        ax.set_ylim(area_bounds['ymin'], area_bounds['ymax'])
+
+    # Hide axis details
+    plt.axis('off')
+    plt.show()
+
+    # Save the figure if required
+    if save:
+        fig.savefig(fname, format='png', dpi=200)
+        fig.savefig(fname.replace('png', 'eps'), format='eps', dpi=200)
+
+
+def plot_cell_transcripts(
+        gdf_t, gene, figwidth, scale_bar,
+        xy_range=False, area_bounds={},
+        markersize=1, only_keep=False, save=False, fname=''):
+    """
+    Plot transcripts for a specified gene within a geographic data frame.
+    
+    Parameters:
+        gdf_t (GeoDataFrame): GeoDataFrame containing transcript information.
+        gene (str): Specific gene to highlight in the plot.
+        figwidth (float): Width of the figure in inches.
+        scale_bar (ScaleBar): Scale bar to be added to the plot, indicating the scale.
+        xy_range (bool): If True, use custom limits for the plot axes.
+        area_bounds (dict): Dictionary specifying the 'xmin', 'xmax', 'ymin', 'ymax' for setting plot limits.
+        markersize (int): Size of the markers in the plot.
+        only_keep (bool): If True, only plot data for transcripts marked as 'Keep'.
+        save (bool): If True, save the plot to a file.
+        fname (str): Filename or path to save the plot if `save` is True.
+    
+    Outputs:
+        A plot is displayed and optionally saved to a file.
+    """
+    # Copy the data to avoid changing the original DataFrame
+    gdf_t_plot = gdf_t.copy()
+
+    # Filter for only 'Kept' transcripts if only_keep is True
+    if only_keep:
+        gdf_t_plot = gdf_t.loc[gdf_t['Keep'] == 1]
+
+    # Filter transcripts for the specific gene
+    gdf_t_plot_gene = gdf_t_plot.loc[gdf_t_plot['gene'] == gene]
+
+    # Set up the plot
+    fig, ax = plt.subplots(figsize=(figwidth, figwidth))
+    fig.patch.set_facecolor('black')
+
+    # Plot all transcripts
+    gdf_t_plot.plot(aspect=1, markersize=markersize * 0.1, ax=ax, legend=False, color='limegreen')
+
+    # Add scale bar to the plot
+    ax.add_artist(scale_bar)
+
+    # Plot specific gene transcripts
+    gdf_t_plot_gene.plot(aspect=1, markersize=markersize, ax=ax, legend=True, color='blue')
+
+    # Set custom axis limits if specified
+    if xy_range:
+        ax.set_xlim(area_bounds['xmin'], area_bounds['xmax'])
+        ax.set_ylim(area_bounds['ymin'], area_bounds['ymax'])
+
+    plt.axis('off')
+    plt.show()
+
+    # Save the figure if required
+    if save:
+        fig.savefig(fname, format='png', dpi=200)
+        fig.savefig(fname.replace('png', 'eps'), format='eps', dpi=200)
 
 
 def translate_to_bbox(original_gdf, bound_box_values_um, des_img_shape):
