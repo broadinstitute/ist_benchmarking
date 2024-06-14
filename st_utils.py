@@ -431,20 +431,15 @@ def get_processed(sample, data_type, fast=False):
     return df
         
 
-
 def get_qced_cell_id(qc_count_threshold, qc_unique_gene_threshold):
 
     d_perc = {}
     df_m = pd.read_parquet(f'data/single_cell_metrics/all_cell_level.parquet.gzip', engine='pyarrow')
     df_mat = df_m.copy()
-    print (f'\nbefore QC: {len(df_mat)}')
     d_before = {**Counter(df_m['sample'])}
     df_mat = df_mat.loc[df_mat['transcript_counts'] > qc_count_threshold]
-    print (f'after QC using transcript count per cell: {len(df_mat)}')
     df_mat = df_mat.loc[df_mat['unique_genes'] > qc_unique_gene_threshold]
-    print (f'after QC using unique genes per cell: {len(df_mat)}')
     d_after = {**Counter(df_mat['sample'])}
-    print (f'Good quality cells: {round(len(df_mat) * 100/len(df_m),1)}')
     for i in d_after.keys():
         d_perc[i] = round(d_after[i] * 100 /d_before[i], 2)
     return df_mat.cell_id.to_list(), d_perc
