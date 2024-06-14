@@ -10,6 +10,9 @@ Functions:
     calculate_tp_fn_fp_from_gdf()
     dapi_mem_mask_annotation()
     gdf_flip()
+    load_cell_boundary_parquet()
+    plot_cell_filtration()
+    plot_cell_transcripts()
     translate_to_bbox()
 """
 
