@@ -385,7 +385,7 @@ def plot_cell_filtration(
     # Plot the GeoDataFrame with the custom colormap
     scatter = gdf_mask.plot(column='Keep', aspect=1, markersize=markersize, ax=ax,
                             legend=False, edgecolor='lightgrey', cmap=cmap, norm=norm,
-                            linewidth=2.0)
+                            linewidth=1.5)
 
     # Optionally add a scale bar
     ax.add_artist(scale_bar)
