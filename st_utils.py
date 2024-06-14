@@ -5,6 +5,7 @@ OPP, Broad Institute of MIT and Harvard
 
 Functions:
     calculate_qc_metric()
+    calculate_seg_eval_metrics()
     convert_to_px()
     correct_tissue_names()
     create_circular_mask()
@@ -69,6 +70,38 @@ def calculate_qc_metric(adata, percent_top=(50, 100, 200, 250), min_counts=10, m
     sc.pp.filter_genes(adata, min_cells=min_counts)
 
     return adata
+
+
+def calculate_seg_eval_metrics(tp, fn, fp):
+    """
+    Calculate precision, recall, F1 score, and IoU based on true positives, false negatives, and false positives.
+
+    Parameters:
+    tp (int): Number of true positive cells
+    fn (int): Number of false negative cells
+    fp (int): Number of false positive cells
+
+    Returns:
+    dict: A dictionary containing precision, recall, F1 score, and IoU
+    """
+    # Precision (Positive Predictive Value)
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    
+    # Recall (Sensitivity, True Positive Rate)
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    
+    # F1 Score
+    f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    
+    # Intersection over Union (IoU), also known as the Jaccard Index
+    iou = tp / (tp + fp + fn) if (tp + fp + fn) > 0 else 0
+    
+    return {
+        'precision': precision,
+        'recall': recall,
+        'f1_score': f1_score,
+        'iou': iou
+    }
 
 
 def convert_to_px(conversion, mat):
