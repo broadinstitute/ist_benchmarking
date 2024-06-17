@@ -376,7 +376,7 @@ def plot_cell_filtration(
         fname (str): Filename or path to save the plot if `save` is True.
     """
     # Define custom colors for the 'Keep' values
-    cmap = ListedColormap(['red', 'blue'])
+    cmap = ListedColormap(['#D55E00', '#009E73'])
     norm = BoundaryNorm([0, 0.5, 1], cmap.N)  # Define the boundaries for "Drop" (0) and "Keep" (1)
 
     fig, ax = plt.subplots(figsize=(figwidth, figwidth))
