@@ -1,2 +1,7 @@
-squidpy==1.2.3
 geopandas==0.13.0
+kaleido
+nbformat==5.10.4
+plotly
+rasterio
+rtree==1.0.1
+squidpy==1.2.3
