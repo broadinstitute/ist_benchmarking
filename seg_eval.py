@@ -361,7 +361,7 @@ def load_cell_boundary_parquet(sample, data_dir='data'):
 def plot_cell_filtration(
         gdf_mask, figwidth, scale_bar,
         xy_range=False, area_bounds={},
-        markersize=1, save=False, fname=''):
+        markersize=1, boundary_color='white', save=False, fname=''):
     """
     Plot a GeoDataFrame representing cell filtration data with custom color mapping.
     
@@ -376,7 +376,7 @@ def plot_cell_filtration(
         fname (str): Filename or path to save the plot if `save` is True.
     """
     # Define custom colors for the 'Keep' values
-    cmap = ListedColormap(['red', 'blue'])
+    cmap = ListedColormap(['#D55E00', '#009E73'])
     norm = BoundaryNorm([0, 0.5, 1], cmap.N)  # Define the boundaries for "Drop" (0) and "Keep" (1)
 
     fig, ax = plt.subplots(figsize=(figwidth, figwidth))
@@ -384,7 +384,7 @@ def plot_cell_filtration(
 
     # Plot the GeoDataFrame with the custom colormap
     scatter = gdf_mask.plot(column='Keep', aspect=1, markersize=markersize, ax=ax,
-                            legend=False, edgecolor='lightgrey', cmap=cmap, norm=norm,
+                            legend=False, edgecolor=boundary_color, cmap=cmap, norm=norm,
                             linewidth=1.5)
 
     # Optionally add a scale bar

@@ -527,7 +527,7 @@ def name_parser(sample):
     platform = sample.split('_')[-3]
     panel = sample.split('_')[-2]
     tma = sample.split('_')[-1]
-    return platform, panel, tma
+    return {"platform":platform,"panel":panel,"tma":tma}
 
 
 def save_html(ipynb, suffix=''):
