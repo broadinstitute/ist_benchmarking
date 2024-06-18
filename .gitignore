@@ -2,6 +2,8 @@ data/
 figures/
 tables/
 old/
+paper/
+all_cores_by_sample/
 __pycache__/
 
 *.csv
