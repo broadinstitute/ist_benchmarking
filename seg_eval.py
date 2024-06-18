@@ -226,6 +226,7 @@ def dapi_mem_mask_annotation(img_dapi, img_mem, gdf_mask, gdf_truth, figwidth,
     if xy_range:
         ax.set_xlim(area_bounds['xmin'], area_bounds['xmax'])
         ax.set_ylim(area_bounds['ymin'], area_bounds['ymax'])
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
     plt.axis('off')
     plt.show()
     if save:
@@ -397,6 +398,7 @@ def plot_cell_filtration(
 
     # Hide axis details
     plt.axis('off')
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
     plt.show()
 
     # Save the figure if required
@@ -454,7 +456,7 @@ def plot_cell_transcripts(
     if xy_range:
         ax.set_xlim(area_bounds['xmin'], area_bounds['xmax'])
         ax.set_ylim(area_bounds['ymin'], area_bounds['ymax'])
-
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
     plt.axis('off')
     plt.show()
 
