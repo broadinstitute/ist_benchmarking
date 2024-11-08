@@ -20,6 +20,8 @@ Functions:
     invert_y()
     load_gis_csv()
     load_shape_file()
+    log2_fold_change()
+    log_transform()
     name_parser()
     save_html()
     seg_overlay()
@@ -29,6 +31,7 @@ Functions:
     transcript_loader()
     vecterize()
 """
+
 import os
 import pandas as pd
 import scanpy as sc
@@ -45,6 +48,7 @@ from shapely.affinity import scale
 from rasterio.features import shapes
 from shapely.geometry import shape
 from matplotlib import pyplot as plt
+import math
 import numpy as np
 from skimage import io
 from skimage.transform import rescale
@@ -115,7 +119,7 @@ def correct_tissue_names(sample, df):
                         'Melanoma':'Mel',
                         'NSCLC':'NSCLC',
                         'OV':'OvC',
-                        'Tonsil':'Tonsil'}
+                        'Tonsil':'Tonsil cancer'}
 
 
     normal_correct_names = {'Bladder':'Bladder', 
@@ -141,12 +145,18 @@ def correct_tissue_names(sample, df):
     tumor2_correct_names = {
         'Bladder':'BlC',
         'Colon CA':'CRC',
-        'DCIS grade 2':'Breast non-invasive DCIS_2',
-        'DCIS grade 3':'Breast non-invasive DCIS_3',
-        'Invasive breast':'Breast invasive',
-        "Hodgkin's Lymphoma":'Lymphoma Hodgkin',
-        "Non-Hodgkin's Lymphoma":'Lymphoma non-Hodgkin',    
-        'LN B-cell lymphoma':'Lymphoma LN B cell',            
+        'DCIS grade 2':'BrC',
+        'DCIS grade 3':'BrC',
+        'Invasive breast':'BrC',
+        'Breast non-invasive DCIS_2':'BrC',
+        'Breast non-invasive DCIS_3':'BrC',
+        'Breast invasive':'BrC',
+        "Hodgkin's Lymphoma":'Lymphoma',
+        "Non-Hodgkin's Lymphoma":'Lymphoma',    
+        'LN B-cell lymphoma':'Lymphoma',
+        'Lymphoma Hodgkin':'Lymphoma',
+        'Lymphoma non-Hodgkin':'Lymphoma',
+        'Lymphoma LN B cell':'Lymphoma',
         'Kidney':'Kidney cancer',
         'Liposarcoma':'Liposarcoma',
         'Liver':'Liver cancer',
@@ -160,14 +170,15 @@ def correct_tissue_names(sample, df):
         'Squamous cell carcinoma':'SCC',
         'Testes':'Testes cancer',
         'Thyroid':'Thyroid cancer',
+        'Tonsil':'Tonsil cancer',
         }
     
     if 'htma' in sample:
-        df['tissue_type'] = df['tissue_type'].replace(htma_correct_names)
+        df['tissue_type'] = df['tissue_type'].map(htma_correct_names).fillna(df['tissue_type'])
     elif 'normal' in sample:
-        df['tissue_type'] = df['tissue_type'].replace(normal_correct_names)
+        df['tissue_type'] = df['tissue_type'].map(normal_correct_names).fillna(df['tissue_type'])
     elif 'tumor2' in sample:
-        df['tissue_type'] = df['tissue_type'].replace(tumor2_correct_names)
+        df['tissue_type'] = df['tissue_type'].map(tumor2_correct_names).fillna(df['tissue_type'])
 
     return df
 
@@ -303,7 +314,10 @@ def get_cell_by_gene(df_t, sample):
         df_pivot = df_t.pivot_table(index='cell_id', columns='gene', values='transcript_id', aggfunc='count', fill_value=0)
 
     # Get unique cell_id with their corresponding core and tissue_type
-    cell_info = df_t[['cell_id', 'core', 'tissue_type']].drop_duplicates()
+    if 'tma' not in sample:
+        cell_info = df_t[['cell_id']].drop_duplicates()
+    else:
+        cell_info = df_t[['cell_id', 'core', 'tissue_type']].drop_duplicates()
 
     # Merge the cell_info with the pivoted data
     result = cell_info.merge(df_pivot, on='cell_id').set_index('cell_id')
@@ -434,7 +448,12 @@ def get_processed(sample, data_type, fast=False):
 def get_qced_cell_id(qc_count_threshold, qc_unique_gene_threshold):
 
     d_perc = {}
-    df_m = pd.read_parquet(f'data/single_cell_metrics/all_cell_level.parquet.gzip', engine='pyarrow')
+    df_m = pd.DataFrame()
+
+    for year in [2023,2024]:
+        df_year = pd.read_parquet(f'data/single_cell_metrics/all_cell_level_{year}.parquet.gzip', engine='pyarrow')
+        df_m = pd.concat([df_m, df_year])
+        
     df_mat = df_m.copy()
     d_before = {**Counter(df_m['sample'])}
     df_mat = df_mat.loc[df_mat['transcript_counts'] > qc_count_threshold]
@@ -522,6 +541,69 @@ def load_shape_file(shapefile):
     gdf = gpd.read_file(shapefile)
     gdf['geometry'] = gdf['geometry'].apply(invert_y)
     return gdf
+
+
+def log2_fold_change(a, b):
+    """
+    Calculate the log2 fold change between two expression values a and b.
+    
+    Parameters:
+    a (float): Expression value in condition A (control or reference)
+    b (float): Expression value in condition B (treatment or experimental)
+    
+    Returns:
+    float: The log2 fold change
+    """
+    if a == 0:
+        raise ValueError("Expression value 'a' should not be zero to avoid division by zero.")
+    fold_change = a / b
+    log2_fc = math.log2(fold_change)
+    return log2_fc
+
+
+def log_transform(df, method='log2', exclude_cols=[]):
+    """
+    Applies a log transformation to all numeric columns in the DataFrame, excluding specified columns.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input DataFrame containing numeric columns to transform.
+    method : str, optional
+        The log transformation method to apply. Options are 'log2', 'log10', 'natural', or 'log1p'.
+        Default is 'log2'.
+    exclude_cols : list, optional
+        A list of column names to exclude from transformation. Default is an empty list.
+        
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame with the transformed values in numeric columns (excluding the specified columns).
+        
+    Raises
+    ------
+    ValueError
+        If an invalid method is provided.
+    """
+    # Select numeric columns and exclude specified columns
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    cols_to_transform = [col for col in numeric_cols if col not in exclude_cols]
+    
+    df_transformed = df.copy()
+
+    if method == 'log2':
+        df_transformed[cols_to_transform] = np.log2(df_transformed[cols_to_transform] + 1)
+    elif method == 'log10':
+        df_transformed[cols_to_transform] = np.log10(df_transformed[cols_to_transform] + 1)
+    elif method == 'natural':
+        df_transformed[cols_to_transform] = np.log(df_transformed[cols_to_transform] + 1)
+    elif method == 'log1p':
+        df_transformed[cols_to_transform] = np.log1p(df_transformed[cols_to_transform])
+    else:
+        raise ValueError("Invalid method. Choose 'log2', 'log10', 'natural', or 'log1p'.")
+    
+    return df_transformed
+
 
 def name_parser(sample):
     platform = sample.split('_')[-3]
@@ -751,3 +833,4 @@ def vectorize(arr):
     gdf['value'] = gdf['value'].astype(int)
 
     return gdf
+
