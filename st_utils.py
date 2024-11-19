@@ -606,9 +606,14 @@ def log_transform(df, method='log2', exclude_cols=[]):
 
 
 def name_parser(sample):
-    platform = sample.split('_')[-3]
-    panel = sample.split('_')[-2]
-    tma = sample.split('_')[-1]
+    if 'round1' not in sample:
+        platform = sample.split('_')[-3]
+        panel = sample.split('_')[-2]
+        tma = sample.split('_')[-1]
+    else:
+        platform = sample.split('_')[-4]
+        panel = sample.split('_')[-3]
+        tma = sample.split('_')[-2]       
     return {"platform":platform,"panel":panel,"tma":tma}
 
 
