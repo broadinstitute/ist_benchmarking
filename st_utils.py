@@ -96,11 +96,11 @@ def convert_to_px(conversion, mat):
 
 def correct_platform_panel(df, col_name):
     correct_platform_panel = {'cosmx_multitissue':'CosMx,1k',
-                              'merscope_breast':'MERSCOPE,breast',
-                              'merscope_lung':'MERSCOPE,lung',
-                              'xenium_breast':'Xenium,breast',
-                              'xenium_lung':'Xenium,lung',
-                              'xenium_panhuman':'Xenium,multi-tissue'}
+                              'merscope_breast':'MERSCOPE,Breast',
+                              'merscope_lung':'MERSCOPE,Lung',
+                              'xenium_breast':'Xenium,Breast',
+                              'xenium_lung':'Xenium,Lung',
+                              'xenium_panhuman':'Xenium,Multi-tissue'}
     df[col_name] = df[col_name].str.lower()
     df[col_name] = df[col_name].replace(correct_platform_panel)
     return df
@@ -163,12 +163,12 @@ def correct_tissue_names(sample, df):
         'Marker Liver':'Marker normal liver',
         'Melanoma':'Mel',
         'Ovarian':'OvC',
-        'Pancreas':'Pancreas cancer',
+        'Pancreas':'Pancreatic cancer',
         'Prostate':'Prostate cancer',
         'Renal':'Renal cancer',
         'Marker Spleen':'Marker normal spleen',
         'Squamous cell carcinoma':'SCC',
-        'Testes':'Testes cancer',
+        'Testes':'Testicular cancer',
         'Thyroid':'Thyroid cancer',
         'Tonsil':'Tonsil cancer',
         }
@@ -278,7 +278,7 @@ def data_loader(SAMPLE, modality, data_type='adata'):
         df.index=df['cell_id']
    
         df = df.rename(columns={'nCount_RNA':'transcript_counts'})
-        adata = ad.AnnData(obs = df)
+        adata = ad.AnnData(X = df.values)
          
     else:
         print (f'This modality is not supporetd yet: {modality}')
