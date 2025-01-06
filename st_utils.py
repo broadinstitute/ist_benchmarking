@@ -278,7 +278,18 @@ def data_loader(SAMPLE, modality, data_type='adata'):
         df.index=df['cell_id']
    
         df = df.rename(columns={'nCount_RNA':'transcript_counts'})
-        adata = ad.AnnData(X = df.values)
+
+
+        numeric_cols = df.select_dtypes(include=['number']).columns
+        non_numeric_cols = df.select_dtypes(exclude=['number']).columns
+
+        df_numeric = df[numeric_cols].copy()      
+        df_non_numeric = df[non_numeric_cols].copy()
+
+        adata = ad.AnnData(X=df_numeric.values)
+        adata.obs_names = df_numeric.index
+        adata.var_names = df_numeric.columns
+        adata.obs = df_non_numeric
          
     else:
         print (f'This modality is not supporetd yet: {modality}')
@@ -314,10 +325,10 @@ def get_cell_by_gene(df_t, sample):
         df_pivot = df_t.pivot_table(index='cell_id', columns='gene', values='transcript_id', aggfunc='count', fill_value=0)
 
     # Get unique cell_id with their corresponding core and tissue_type
-    if 'tma' not in sample:
-        cell_info = df_t[['cell_id']].drop_duplicates()
-    else:
-        cell_info = df_t[['cell_id', 'core', 'tissue_type']].drop_duplicates()
+    # if 'tma' not in sample:
+    #     cell_info = df_t[['cell_id']].drop_duplicates()
+    # else:
+    cell_info = df_t[['cell_id', 'core', 'tissue_type']].drop_duplicates()
 
     # Merge the cell_info with the pivoted data
     result = cell_info.merge(df_pivot, on='cell_id').set_index('cell_id')
@@ -393,6 +404,19 @@ def get_gdf_core_from_polygon(shapefile, csv_sample_info, scaling_factor):
     gdf_join['core'] = gdf_join['core'].apply(lambda x: str(int(x)))
 
     return gdf_join
+
+
+def get_gene_length(gene, data):
+    """
+    from pyensembl import EnsemblRelease
+    data = EnsemblRelease(release=104, species='homo_sapiens')
+    """
+    
+    gid = data.gene_ids_of_gene_name(gene)[0]
+    gene = data.gene_by_id(gene_id=gid)
+    transcript = gene.transcripts[0]
+    gene_length = transcript.end-transcript.start
+    return gene_length
 
 
 def get_gene_type(g):
