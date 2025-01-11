@@ -33,18 +33,20 @@ CB_COLORS_5 = {'grey':'#C0C0C0',
 
 cb_5 = ListedColormap(CB_COLORS_5.values())
 
-CORRECT_PLATFORM_PANEL = {'cosmx_multitissue':'CosMx,1k',
-                            'merscope_breast':'MERSCOPE,breast',
-                            'merscope_lung':'MERSCOPE,lung',
-                            'xenium_breast':'Xenium,breast',
-                            'xenium_lung':'Xenium,lung',
-                            'xenium_panhuman':'Xenium,multi-tissue'}
+convert_tma_name_dict = {'HTMA':'tTMA1','TUMOR2':'tTMA2', 'NORMAL':'nTMA', 'tTMA1':'tTMA1'}
 
-sample_color = {'Xenium,breast':'#0072B2',
-              'Xenium,multi-tissue':'#56B4E9',
-              'Xenium,lung':'#C0C0C0',
-              'MERSCOPE,breast':'#D55E00',
-              'MERSCOPE,lung':'#F0E442',
+CORRECT_PLATFORM_PANEL = {'cosmx_multitissue':'CosMx,1k',
+                            'merscope_breast':'MERSCOPE,Breast',
+                            'merscope_lung':'MERSCOPE,Lung',
+                            'xenium_breast':'Xenium,Breast',
+                            'xenium_lung':'Xenium,Lung',
+                            'xenium_panhuman':'Xenium,Multi-tissue'}
+
+sample_color = {'Xenium,Breast':'#0072B2',
+              'Xenium,Multi-tissue':'#56B4E9',
+              'Xenium,Lung':'#C0C0C0',
+              'MERSCOPE,Breast':'#D55E00',
+              'MERSCOPE,Lung':'#F0E442',
               'CosMx,1k':'#009E73',
               'xenium':'#0072B2',
               'merscope':'#D55E00',
