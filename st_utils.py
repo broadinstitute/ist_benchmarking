@@ -406,19 +406,6 @@ def get_gdf_core_from_polygon(shapefile, csv_sample_info, scaling_factor):
     return gdf_join
 
 
-def get_gene_length(gene, data):
-    """
-    from pyensembl import EnsemblRelease
-    data = EnsemblRelease(release=104, species='homo_sapiens')
-    """
-    
-    gid = data.gene_ids_of_gene_name(gene)[0]
-    gene = data.gene_by_id(gene_id=gid)
-    transcript = gene.transcripts[0]
-    gene_length = transcript.end-transcript.start
-    return gene_length
-
-
 def get_gene_type(g):
     g = str(g)
     if 'BLANK' in g: # Xenium
