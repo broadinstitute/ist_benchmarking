@@ -222,7 +222,9 @@ def dapi_mem_mask_annotation(img_dapi, img_mem, gdf_mask, gdf_truth, figwidth,
         edgecolor=gt_color,
         facecolor=gt_color,
         linewidth=markersize)
-    ax.add_artist(scale_bar)
+    if scale_bar:
+        # Optionally add a scale bar
+        ax.add_artist(scale_bar)
     if xy_range:
         ax.set_xlim(area_bounds['xmin'], area_bounds['xmax'])
         ax.set_ylim(area_bounds['ymin'], area_bounds['ymax'])
@@ -388,8 +390,9 @@ def plot_cell_filtration(
                             legend=False, edgecolor=boundary_color, cmap=cmap, norm=norm,
                             linewidth=1.5)
 
-    # Optionally add a scale bar
-    ax.add_artist(scale_bar)
+    if scale_bar:
+        # Optionally add a scale bar
+        ax.add_artist(scale_bar)
 
     # Set custom axis limits if specified
     if xy_range:
@@ -446,8 +449,9 @@ def plot_cell_transcripts(
     # Plot all transcripts
     gdf_t_plot.plot(aspect=1, markersize=markersize * 0.1, ax=ax, legend=False, color='limegreen')
 
-    # Add scale bar to the plot
-    ax.add_artist(scale_bar)
+    if scale_bar:
+        # Optionally add a scale bar
+        ax.add_artist(scale_bar)
 
     # Plot specific gene transcripts
     gdf_t_plot_gene.plot(aspect=1, markersize=markersize, ax=ax, legend=True, color='blue')
